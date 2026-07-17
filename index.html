@@ -1,0 +1,2044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Priority Gantt Planner</title>
+    <!-- Include html2canvas for high-fidelity PNG exports -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --panel-bg: #ffffff;
+            --text-color: #2c3e50;
+            --text-muted: #7f8c8d;
+            --border-color: #cbd5e1;
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+
+            /* Microsoft OneDrive Branding Color Scheme */
+            --onedrive-blue: #0078d4;
+            --onedrive-hover: #005a9e;
+            --onedrive-light: #f0f7ff;
+
+            /* Priority Colors */
+            --priority-high: #ef4444;
+            --priority-high-bg: #fee2e2;
+            --priority-medium: #f59e0b;
+            --priority-medium-bg: #fef3c7;
+            --priority-low: #10b981;
+            --priority-low-bg: #d1fae5;
+
+            /* Completed Tasks (Sky Blue Style) */
+            --completed-color: #0284c7;
+            --completed-bg: #e0f2fe;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background: var(--panel-bg);
+            padding: 15px 30px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            z-index: 20;
+        }
+
+        header h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        header h1 span {
+            background: var(--primary-color);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .actions-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--panel-bg);
+            color: var(--text-color);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+
+        button:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+        }
+
+        button.primary {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        button.primary:hover {
+            background: var(--primary-hover);
+        }
+
+        button.onedrive-btn {
+            background: var(--onedrive-blue);
+            color: white;
+            border-color: var(--onedrive-blue);
+        }
+
+        button.onedrive-btn:hover {
+            background: var(--onedrive-hover);
+            border-color: var(--onedrive-hover);
+        }
+
+        .app-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar - Task input & List */
+        .sidebar {
+            width: 380px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .sidebar-section {
+            background: #fafafb;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease-in-out;
+        }
+
+        .sidebar-section h2 {
+            font-size: 1rem;
+            color: #1e293b;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            transition: margin-bottom 0.2s, border-color 0.2s, padding-bottom 0.2s;
+        }
+
+        /* Collapsible Sidebar Section styling overrides */
+        .sidebar-section h2::after {
+            content: '▲';
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            transition: transform 0.2s ease;
+        }
+
+        .sidebar-section.collapsed h2::after {
+            transform: rotate(180deg);
+        }
+
+        .sidebar-section.collapsed h2 {
+            margin-bottom: 0 !important;
+            border-bottom-color: transparent !important;
+            padding-bottom: 0 !important;
+        }
+
+        .sidebar-section.collapsed .section-content {
+            display: none !important;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #64748b;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+            background: white;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+        }
+
+        /* Custom styling for the undated checkbox form element */
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 15px 0;
+            user-select: none;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            cursor: pointer;
+            height: 16px;
+            width: 16px;
+        }
+
+        .checkbox-group label {
+            margin-bottom: 0;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        /* Header Show Completed Toggle Styling */
+        .header-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-right: 15px;
+            border-right: 1px solid var(--border-color);
+            user-select: none;
+        }
+
+        .header-toggle input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .header-toggle label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-color);
+            cursor: pointer;
+        }
+
+        /* Project Tag Badges */
+        .project-tag {
+            display: inline-block;
+            background: #e0f2fe;
+            color: #0369a1;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #bae6fd;
+        }
+
+        .project-tag-gantt {
+            display: inline-block;
+            background: #e2e8f0;
+            color: #475569;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 4px;
+            margin-top: 4px;
+            border: 1px solid #cbd5e1;
+            align-self: flex-start;
+        }
+
+        .project-tag-backlog {
+            display: inline-block;
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 4px;
+            border: 1px solid #cbd5e1;
+        }
+
+        .project-tag-tooltip {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.15);
+            color: #e2e8f0;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-top: 4px;
+        }
+
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .task-card {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid #cbd5e1;
+            padding: 12px;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .task-card.high { border-left-color: var(--priority-high); }
+        .task-card.medium { border-left-color: var(--priority-medium); }
+        .task-card.low { border-left-color: var(--priority-low); }
+        .task-card.completed { border-left-color: var(--completed-color); }
+
+        .task-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .task-card-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            white-space: normal;
+            word-wrap: break-word;
+        }
+
+        .priority-badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .priority-badge.high { background: var(--priority-high-bg); color: var(--priority-high); }
+        .priority-badge.medium { background: var(--priority-medium-bg); color: var(--priority-medium); }
+        .priority-badge.low { background: var(--priority-low-bg); color: var(--priority-low); }
+        .priority-badge.completed { background: var(--completed-bg); color: var(--completed-color); }
+
+        .task-card-dates {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .task-card-progress {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
+        }
+
+        .progress-bar-bg {
+            flex: 1;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--primary-color);
+        }
+
+        .task-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 6px;
+        }
+
+        .task-actions button {
+            padding: 4px 8px;
+            font-size: 0.75rem;
+        }
+
+        /* OneDrive Integration File Upload Box Styling */
+        .custom-file-upload {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--onedrive-blue);
+            background: white;
+            color: var(--onedrive-blue);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            text-align: center;
+        }
+
+        .custom-file-upload:hover {
+            background: var(--onedrive-light);
+            border-color: var(--onedrive-hover);
+            color: var(--onedrive-hover);
+        }
+
+        /* Main Workspace - Gantt Chart View */
+        .gantt-container {
+            flex: 1;
+            background: var(--panel-bg);
+            display: flex;
+            flex-direction: column;
+            overflow: auto;
+        }
+
+        /* Gantt Range Control Header */
+        .gantt-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 15;
+        }
+
+        .view-selector, .navigation-controls {
+            display: flex;
+            gap: 6px;
+        }
+
+        .view-selector button, .navigation-controls button {
+            padding: 6px 14px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border-radius: 6px;
+        }
+
+        .view-selector button.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .current-range-display {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .gantt-header-row {
+            display: flex;
+            border-bottom: 2px solid var(--border-color);
+            background: #f1f5f9;
+            position: sticky;
+            top: 56px; /* Offset to sit right below the control bar */
+            z-index: 10;
+        }
+
+        .gantt-header-task-column {
+            width: 240px;
+            min-width: 240px;
+            padding: 15px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            border-right: 1px solid var(--border-color);
+            background: #e2e8f0;
+            color: #334155;
+            display: flex;
+            align-items: center;
+        }
+
+        .gantt-timeline-header {
+            display: flex;
+            flex: 1;
+        }
+
+        .gantt-day-col {
+            flex: 1;
+            text-align: center;
+            padding: 10px 5px;
+            border-right: 1px solid var(--border-color);
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #475569;
+            background: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-width: 0; /* Ensures exact visual proportioning */
+        }
+
+        .gantt-day-col.weekend {
+            background: #f1f5f9;
+        }
+
+        .gantt-row {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            min-height: 65px;
+            position: relative;
+        }
+
+        .gantt-task-meta {
+            width: 240px;
+            min-width: 240px;
+            padding: 12px;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: #fbfcfe;
+            font-size: 0.85rem;
+            font-weight: 500;
+            white-space: normal;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+
+        .gantt-meta-title {
+            font-weight: 600;
+            color: #1e293b;
+            line-height: 1.3;
+            cursor: pointer;
+            margin-bottom: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .gantt-meta-title:hover {
+            color: var(--primary-color);
+        }
+
+        /* visual progress bars inside left meta column */
+        .gantt-meta-progress-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
+            width: 100%;
+        }
+
+        .gantt-meta-progress-bar {
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            flex: 1;
+            overflow: hidden;
+            max-width: 100px;
+        }
+
+        .gantt-meta-progress-fill {
+            height: 100%;
+            border-radius: 3px;
+        }
+
+        .gantt-meta-progress-fill.high { background: var(--priority-high); }
+        .gantt-meta-progress-fill.medium { background: var(--priority-medium); }
+        .gantt-meta-progress-fill.low { background: var(--priority-low); }
+        .gantt-meta-progress-fill.completed { background: var(--completed-color); }
+
+        /* Core mathematically aligned grid alignment overlay */
+        .gantt-timeline-row {
+            display: flex;
+            flex: 1;
+            position: relative;
+            overflow: hidden; /* Clips visual bar overflows cleanly at the boundaries */
+        }
+
+        .gantt-cell {
+            flex: 1;
+            border-right: 1px solid var(--border-color);
+            height: 100%;
+            background: transparent;
+            min-width: 0;
+        }
+
+        .gantt-cell.weekend {
+            background: #f8fafc;
+        }
+
+        /* Gantt Task Visual Bar */
+        .gantt-bar {
+            position: absolute;
+            top: 16px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #1e293b;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: help;
+        }
+
+        .gantt-bar:hover {
+            transform: scaleY(1.05);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.12);
+            z-index: 2;
+        }
+
+        .gantt-bar.high { background: var(--priority-high-bg); border-left: 4px solid var(--priority-high); }
+        .gantt-bar.medium { background: var(--priority-medium-bg); border-left: 4px solid var(--priority-medium); }
+        .gantt-bar.low { background: var(--priority-low-bg); border-left: 4px solid var(--priority-low); }
+        .gantt-bar.completed { background: var(--completed-bg); border-left: 4px solid var(--completed-color); }
+
+        /* Left/Right flat clipping boundaries when task overflows current range */
+        .gantt-bar.overflow-left {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            border-left: 3px dotted rgba(0,0,0,0.3);
+        }
+
+        .gantt-bar.overflow-right {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+            border-right: 3px dotted rgba(0,0,0,0.3);
+        }
+
+        .gantt-bar-progress {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.06);
+            z-index: 0;
+        }
+
+        .gantt-bar-label {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            align-items: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            gap: 8px;
+        }
+
+        .gantt-bar-label span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Completely hide label inside bar if narrow, falling back entirely to tooltip */
+        .gantt-bar.hide-label .gantt-bar-label {
+            display: none !important;
+        }
+
+        /* Separated section for tasks with no defined dates at the bottom */
+        .undated-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8fafc;
+            border-top: 3px double var(--border-color);
+            transition: all 0.2s ease-in-out;
+        }
+
+        .undated-section.collapsed {
+            border-top-style: solid;
+            padding-bottom: 12px;
+        }
+
+        .undated-section.collapsed .undated-content-wrapper {
+            display: none !important;
+        }
+
+        .undated-section-header {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .undated-section-header span.badge {
+            background: #e2e8f0;
+            color: #475569;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .undated-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(285px, 1fr));
+            gap: 15px;
+        }
+
+        .undated-card {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-top: 4px solid #cbd5e1;
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .undated-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .undated-card.high { border-top-color: var(--priority-high); }
+        .undated-card.medium { border-top-color: var(--priority-medium); }
+        .undated-card.low { border-top-color: var(--priority-low); }
+        .undated-card.completed { border-top-color: var(--completed-color); }
+
+        /* Tooltip style */
+        #gantt-tooltip {
+            position: absolute;
+            background: #1e293b;
+            color: #ffffff;
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25), 0 4px 6px -2px rgba(0, 0, 0, 0.15);
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.1s ease-out;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            min-width: 220px;
+            max-width: 320px;
+        }
+
+        #gantt-tooltip .priority-badge {
+            font-size: 0.65rem;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        #gantt-tooltip .priority-badge.high { background: var(--priority-high); color: white; }
+        #gantt-tooltip .priority-badge.medium { background: var(--priority-medium); color: #1e293b; }
+        #gantt-tooltip .priority-badge.low { background: var(--priority-low); color: white; }
+        #gantt-tooltip .priority-badge.completed { background: var(--completed-color); color: white; }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 20px;
+            font-weight: 500;
+        }
+
+        .flex-space { display: flex; justify-content: space-between; align-items: center; }
+        .text-bold { font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1><span>TaskGantt</span> Priority-Based Organizer</h1>
+        <div class="actions-bar">
+            <!-- Header Show Completed Toggle Button/Label -->
+            <div class="header-toggle">
+                <input type="checkbox" id="show-completed-toggle" checked onchange="toggleCompletedTasks(this.checked)">
+                <label for="show-completed-toggle">Show Completed Tasks</label>
+            </div>
+            <!-- Project Filter Dropdown Selection -->
+            <div class="header-toggle" style="border-right: 1px solid var(--border-color); padding-right: 15px;">
+                <label for="project-filter" style="font-size: 0.85rem; font-weight: 600; color: var(--text-color);">Project Filter:</label>
+                <select id="project-filter" onchange="changeProjectFilter(this.value)" style="padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.85rem; cursor: pointer; background: white; font-weight: 600; outline: none; min-width: 140px;">
+                    <option value="all">All Projects</option>
+                </select>
+            </div>
+            <button onclick="sortTasks('priority')">⭐ Sort by Priority</button>
+            <button onclick="exportToPNG()" class="primary">📸 Export as PNG</button>
+            <button onclick="resetData()" style="color: var(--priority-high);">🔄 Reset Data</button>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <!-- Sidebar containing Task Form, List & Task Data Management -->
+        <div class="sidebar">
+            <!-- Task Data Management (Retractable) -->
+            <div class="sidebar-section" id="section-data" style="border-top: 3px solid var(--onedrive-blue); background: var(--onedrive-light);">
+                <h2 onclick="toggleSection('section-data')" style="color: var(--onedrive-blue);">
+                    <span style="display: flex; align-items: center; gap: 8px;">💾 Task Data Management</span>
+                </h2>
+                <div class="section-content" style="margin-top: 12px;">
+                    <p style="font-size: 0.75rem; color: #475569; margin-bottom: 12px; line-height: 1.4;">
+                        Export backup file directly to your local device. To import to another device, simply click the button here!
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button type="button" onclick="exportData()" class="onedrive-btn" style="width: 100%; justify-content: center;">
+                            📤 Export backup
+                        </button>
+                        <label class="custom-file-upload">
+                            📥 Import backup
+                            <input type="file" id="import-file" accept=".json" onchange="importData(event)" style="display: none;">
+                        </label>
+                    </div>
+                    <div id="sync-status" style="margin-top: 10px; font-size: 0.72rem; font-weight: 700; text-align: center; color: var(--onedrive-blue); display: none;">
+                        ✓ Gantt Chart updated successfully!
+                    </div>
+                    <!-- Dynamic Sync Timestamp Display -->
+                    <div id="last-sync-display" style="margin-top: 10px; font-size: 0.72rem; color: #475569; text-align: center; border-top: 1px dashed var(--border-color); padding-top: 8px;">
+                        ⏱️ <strong>Last shared update:</strong> Never
+                    </div>
+                </div>
+            </div>
+
+            <!-- Task Input Form (Retractable) -->
+            <div class="sidebar-section" id="section-create">
+                <h2 onclick="toggleSection('section-create')">
+                    <span id="form-title">Create New Task</span>
+                </h2>
+                <div class="section-content" style="margin-top: 12px;">
+                    <form id="task-form" onsubmit="saveTask(event)">
+                        <input type="hidden" id="task-id">
+                        <div class="form-group">
+                            <label for="task-name">Task Name</label>
+                            <input type="text" id="task-name" required placeholder="Build presentation, write code...">
+                        </div>
+                        <div class="form-group">
+                            <label for="task-project">Project Flag (e.g. #AM-Best)</label>
+                            <input type="text" id="task-project" list="project-suggestions" placeholder="e.g. #AI-Big-Bang or #AM-Best">
+                            <datalist id="project-suggestions"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-priority">Priority Level</label>
+                            <select id="task-priority" required>
+                                <option value="high">High Priority</option>
+                                <option value="medium" selected>Medium Priority</option>
+                                <option value="low">Low Priority</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-start">Start Date</label>
+                            <input type="date" id="task-start" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-end">End Date</label>
+                            <input type="date" id="task-end" required>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="task-no-dates" onchange="toggleDateInputs()">
+                            <label for="task-no-dates">No defined dates (Backlog)</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-progress">Progress (%)</label>
+                            <input type="number" id="task-progress" min="0" max="100" value="0" required>
+                        </div>
+                        <div class="flex-space" style="gap: 10px; margin-top: 15px;">
+                            <button type="button" onclick="clearForm()" id="cancel-btn" style="display:none; flex:1;">Cancel</button>
+                            <button type="submit" class="primary" style="flex:2;" id="save-btn">Add Task</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Task List Overview (Retractable) -->
+            <div class="sidebar-section" id="section-list">
+                <h2 onclick="toggleSection('section-list')">
+                    <span>Task List</span>
+                </h2>
+                <div class="section-content" style="margin-top: 12px;">
+                    <div id="sidebar-task-list" class="task-list">
+                        <!-- Tasks injected here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main workspace showing Gantt Chart Timeline -->
+        <div class="gantt-container">
+            <!-- Navigation Control Bar -->
+            <div class="gantt-controls">
+                <div class="view-selector">
+                    <button id="view-btn-weekly" class="active" onclick="changeView('weekly')">Weekly</button>
+                    <button id="view-btn-monthly" onclick="changeView('monthly')">Monthly</button>
+                    <button id="view-btn-yearly" onclick="changeView('yearly')">Yearly</button>
+                </div>
+
+                <div class="current-range-display" id="current-range-text">
+                    Loading range...
+                </div>
+
+                <div class="navigation-controls">
+                    <button onclick="navigateView(-1)">◀ Prev</button>
+                    <button onclick="navigateView(0)" class="today-btn">Today</button>
+                    <button onclick="navigateView(1)">Next ▶</button>
+                </div>
+            </div>
+
+            <!-- Gantt view containing header & absolute grid -->
+            <div id="gantt-view" style="display: flex; flex-direction: column; flex: 1;">
+                <!-- Dynamic grid rows, bars, and undated section rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Mouse hover tooltip -->
+    <div id="gantt-tooltip"></div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js';
+        import {
+            getFirestore,
+            collection,
+            deleteDoc,
+            doc,
+            getDocs,
+            onSnapshot,
+            setDoc,
+            writeBatch
+        } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+        import { firebaseConfig } from './firebase-config.js';
+
+        // Default seed data aligning with user context dates (June 2026)
+        const initialTasks = [
+            { id: "1", name: "Scenario-based Industry Fin Model", priority: "high", start: "2026-06-09", end: "2026-06-11", progress: 50, noDates: false, project: "#AM-Best" },
+            { id: "2", name: "test", priority: "medium", start: "2026-06-13", end: "2026-06-24", progress: 0, noDates: false, project: "" },
+            { id: "3", name: "UI Design Phase", priority: "medium", start: "2026-06-01", end: "2026-06-08", progress: 85, noDates: false, project: "#AI-Big-Bang" },
+            { id: "4", name: "Backend Architecture", priority: "high", start: "2026-06-05", end: "2026-06-20", progress: 100, noDates: false, project: "#AI-Big-Bang" },
+            { id: "5", name: "App Deployment & Launch", priority: "low", start: "2026-06-25", end: "2026-07-10", progress: 0, noDates: false, project: "" },
+            { id: "6", name: "Draft project guidelines & standard operating procedures", priority: "low", start: "", end: "", progress: 10, noDates: true, project: "#Core-Platform" }
+        ];
+
+        const TASK_DATA_URL = './gantt-tasks-backup.json';
+        const TASK_DATA_FILENAME = 'gantt-tasks-backup.json';
+        const TASKS_COLLECTION = 'tasks';
+
+        // Firestore is the shared source of truth. JSON and localStorage are backups only.
+        let tasks = [];
+        let db = null;
+        let unsubscribeTasks = null;
+        let initialSnapshotHandled = false;
+        let lastSync = localStorage.getItem('gantt_last_sync') || '';
+        let showCompleted = localStorage.getItem('gantt_show_completed') !== 'false'; // State tracking for toggle behavior
+        let activeProjectFilter = 'all'; // Global filtering project flag state
+
+        // Active State of Range Viewports
+        let currentView = 'weekly';
+        let viewDate = new Date(); // Dynamic starting date (defaults to the actual client date dynamically)
+        let undatedPriorityFilter = 'all'; // Active filter state for undated tasks
+        let undatedCollapsed = localStorage.getItem('gantt_undated_collapsed') === 'true'; // State manager for the backlog/undated tasks collapse option
+
+        // Toggle collapsible sections in the sidebar & persist in localStorage
+        function toggleSection(elementId) {
+            const section = document.getElementById(elementId);
+            if (section) {
+                section.classList.toggle('collapsed');
+                localStorage.setItem(`gantt_collapsed_${elementId}`, section.classList.contains('collapsed'));
+            }
+        }
+
+        // Toggle undated section collapse state on render loop
+        function toggleUndatedCollapse() {
+            undatedCollapsed = !undatedCollapsed;
+            localStorage.setItem('gantt_undated_collapsed', undatedCollapsed);
+            renderGantt();
+        }
+
+        // Toggle state of dates based on undated checkbox state
+        function toggleDateInputs() {
+            const noDates = document.getElementById('task-no-dates').checked;
+            const startInput = document.getElementById('task-start');
+            const endInput = document.getElementById('task-end');
+
+            if (noDates) {
+                startInput.disabled = true;
+                endInput.disabled = true;
+                startInput.required = false;
+                endInput.required = false;
+                startInput.value = '';
+                endInput.value = '';
+            } else {
+                startInput.disabled = false;
+                endInput.disabled = false;
+                startInput.required = true;
+                endInput.required = true;
+            }
+        }
+
+        // Toggle visibility of completed tasks (100% progress)
+        function toggleCompletedTasks(checked) {
+            showCompleted = checked;
+            localStorage.setItem('gantt_show_completed', checked);
+            render();
+        }
+
+        // Save or update task
+        function saveTask(event) {
+            event.preventDefault();
+            const id = document.getElementById('task-id').value;
+            const name = document.getElementById('task-name').value;
+            const priority = document.getElementById('task-priority').value;
+            const noDates = document.getElementById('task-no-dates').checked;
+            const start = noDates ? "" : document.getElementById('task-start').value;
+            const end = noDates ? "" : document.getElementById('task-end').value;
+            const progress = parseInt(document.getElementById('task-progress').value) || 0;
+
+            // Format Custom Project Tag Standard (Keep Notes Hashtag style)
+            let project = document.getElementById('task-project').value.trim();
+            if (project) {
+                if (!project.startsWith('#')) {
+                    project = '#' + project;
+                }
+                project = project.replace(/\s+/g, '-'); // auto replace spaces with hyphens for standard Keep-style tags
+            }
+
+            if (!noDates && new Date(start) > new Date(end)) {
+                alert("Start Date cannot be after End Date!");
+                return;
+            }
+
+            let taskToSave = null;
+
+            if (id) {
+                // Update
+                const index = tasks.findIndex(t => t.id === id);
+                if (index !== -1) {
+                    taskToSave = { id, name, priority, start, end, progress, noDates, project };
+                    tasks[index] = taskToSave;
+                }
+            } else {
+                // Create
+                taskToSave = {
+                    id: Date.now().toString(),
+                    name, priority, start, end, progress, noDates, project
+                };
+                tasks.push(taskToSave);
+            }
+
+            saveToStorageAndRender();
+            if (taskToSave) persistTask(taskToSave);
+            clearForm();
+        }
+
+        function editTask(id) {
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+
+            // Automatically open task creation form if collapsed when user goes to edit
+            const createFormSection = document.getElementById('section-create');
+            if (createFormSection && createFormSection.classList.contains('collapsed')) {
+                createFormSection.classList.remove('collapsed');
+                localStorage.setItem('gantt_collapsed_section-create', 'false');
+            }
+
+            document.getElementById('task-id').value = task.id;
+            document.getElementById('task-name').value = task.name;
+            document.getElementById('task-project').value = task.project || "";
+            document.getElementById('task-priority').value = task.priority;
+            document.getElementById('task-no-dates').checked = !!task.noDates;
+            toggleDateInputs();
+
+            if (!task.noDates) {
+                document.getElementById('task-start').value = task.start || "";
+                document.getElementById('task-end').value = task.end || "";
+            }
+            document.getElementById('task-progress').value = task.progress;
+
+            document.getElementById('form-title').innerText = "Edit Task";
+            document.getElementById('save-btn').innerText = "Update Task";
+            document.getElementById('cancel-btn').style.display = 'block';
+        }
+
+        function deleteTask(id, event) {
+            if (event) event.stopPropagation();
+            if(confirm("Are you sure you want to delete this task?")) {
+                tasks = tasks.filter(t => t.id !== id);
+                saveToStorageAndRender();
+                removeTask(id);
+                clearForm();
+            }
+        }
+
+        function clearForm() {
+            document.getElementById('task-id').value = "";
+            document.getElementById('task-form').reset();
+            document.getElementById('task-no-dates').checked = false;
+            toggleDateInputs();
+            document.getElementById('form-title').innerText = "Create New Task";
+            document.getElementById('save-btn').innerText = "Add Task";
+            document.getElementById('cancel-btn').style.display = 'none';
+        }
+
+        function sortTasks(criterion) {
+            if (criterion === 'priority') {
+                const order = { high: 1, medium: 2, low: 3 };
+                tasks.sort((a, b) => {
+                    const aDone = a.progress === 100 ? 1 : 0;
+                    const bDone = b.progress === 100 ? 1 : 0;
+                    if (aDone !== bDone) return aDone - bDone; // Completed goes to the bottom
+                    return order[a.priority] - order[b.priority]; // Active sorted by high -> medium -> low
+                });
+            }
+            saveToStorageAndRender();
+        }
+
+        function resetData() {
+            if(confirm("Reset planner to initial template data?")) {
+                tasks = [...initialTasks];
+                viewDate = new Date();
+                currentView = 'weekly';
+                undatedPriorityFilter = 'all'; // Reset undated filter back to default
+                activeProjectFilter = 'all'; // Reset project filter back to default
+                undatedCollapsed = false;
+                localStorage.setItem('gantt_undated_collapsed', 'false');
+                showCompleted = true;
+                document.getElementById('show-completed-toggle').checked = true;
+                localStorage.setItem('gantt_show_completed', 'true');
+                document.getElementById('view-btn-weekly').click();
+
+                // Reset sidebar collapses back to expanded default
+                document.querySelectorAll('.sidebar-section').forEach(s => {
+                    s.classList.remove('collapsed');
+                    localStorage.setItem(`gantt_collapsed_${s.id}`, 'false');
+                });
+
+                // Clear backup sync time
+                lastSync = '';
+                localStorage.removeItem('gantt_last_sync');
+                displayLastSync();
+
+                saveToStorageAndRender();
+                replaceAllTasks(tasks);
+                clearForm();
+            }
+        }
+
+        // Render immediately while Firestore distributes the change to every open device.
+        function saveToStorageAndRender() {
+            localStorage.setItem('gantt_tasks', JSON.stringify(tasks));
+            render();
+        }
+
+        function taskForFirestore(task) {
+            return {
+                name: String(task.name || ''),
+                priority: ['high', 'medium', 'low'].includes(task.priority) ? task.priority : 'medium',
+                start: String(task.start || ''),
+                end: String(task.end || ''),
+                progress: Math.max(0, Math.min(100, Number(task.progress) || 0)),
+                noDates: Boolean(task.noDates),
+                project: String(task.project || ''),
+                updatedAt: new Date().toISOString()
+            };
+        }
+
+        function taskFromFirestore(snapshot) {
+            const data = snapshot.data();
+            return {
+                id: snapshot.id,
+                name: String(data.name || ''),
+                priority: ['high', 'medium', 'low'].includes(data.priority) ? data.priority : 'medium',
+                start: String(data.start || ''),
+                end: String(data.end || ''),
+                progress: Math.max(0, Math.min(100, Number(data.progress) || 0)),
+                noDates: Boolean(data.noDates),
+                project: String(data.project || '')
+            };
+        }
+
+        function validateTaskData(data) {
+            if (!Array.isArray(data)) {
+                throw new Error('Task data must be a list of tasks.');
+            }
+
+            data.forEach((task, index) => {
+                if (!task || typeof task !== 'object' || !('name' in task) || !('priority' in task)) {
+                    throw new Error(`Task ${index + 1} is missing required properties.`);
+                }
+            });
+
+            return data;
+        }
+
+        function firebaseIsConfigured() {
+            return firebaseConfig
+                && firebaseConfig.apiKey
+                && firebaseConfig.projectId
+                && !Object.values(firebaseConfig).some(value => String(value).includes('REPLACE_WITH'));
+        }
+
+        async function loadBackupTasks() {
+            try {
+                const response = await fetch(TASK_DATA_URL, { cache: 'no-store' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return validateTaskData(await response.json());
+            } catch (err) {
+                const cachedTasks = localStorage.getItem('gantt_tasks');
+                return cachedTasks ? validateTaskData(JSON.parse(cachedTasks)) : [...initialTasks];
+            }
+        }
+
+        async function persistTask(task) {
+            if (!db) return showSyncStatus('⚠ Firebase is not configured; the change is only visible on this device.');
+            try {
+                await setDoc(doc(db, TASKS_COLLECTION, String(task.id)), taskForFirestore(task));
+                updateLastSync();
+            } catch (err) {
+                console.error('Unable to save task:', err);
+                showSyncStatus(`⚠ Could not save to Firestore: ${err.message}`);
+            }
+        }
+
+        async function removeTask(id) {
+            if (!db) return showSyncStatus('⚠ Firebase is not configured; the deletion is only visible on this device.');
+            try {
+                await deleteDoc(doc(db, TASKS_COLLECTION, String(id)));
+                updateLastSync();
+            } catch (err) {
+                console.error('Unable to delete task:', err);
+                showSyncStatus(`⚠ Could not delete from Firestore: ${err.message}`);
+            }
+        }
+
+        async function replaceAllTasks(replacementTasks) {
+            if (!db) return showSyncStatus('⚠ Firebase is not configured; imported/reset data is only visible on this device.');
+            try {
+                const existing = await getDocs(collection(db, TASKS_COLLECTION));
+                const totalWrites = existing.size + replacementTasks.length;
+                if (totalWrites > 500) {
+                    throw new Error('This import is too large for a single batch (maximum 500 changes).');
+                }
+
+                const batch = writeBatch(db);
+                existing.forEach(item => batch.delete(item.ref));
+                replacementTasks.forEach(task => {
+                    batch.set(doc(db, TASKS_COLLECTION, String(task.id)), taskForFirestore(task));
+                });
+                await batch.commit();
+                updateLastSync();
+                showSyncStatus(`✓ Shared task data updated for all users.`);
+            } catch (err) {
+                console.error('Unable to replace Firestore task data:', err);
+                showSyncStatus(`⚠ Could not update Firestore: ${err.message}`);
+            }
+        }
+
+        async function initializeSharedTasks() {
+            tasks = await loadBackupTasks();
+            render();
+
+            if (!firebaseIsConfigured()) {
+                showSyncStatus('⚠ Add your Firebase web configuration to firebase-config.js before deploying.');
+                return;
+            }
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+
+                unsubscribeTasks = onSnapshot(
+                    collection(db, TASKS_COLLECTION),
+                    async snapshot => {
+                        if (snapshot.empty && !initialSnapshotHandled) {
+                            initialSnapshotHandled = true;
+                            await replaceAllTasks(tasks.length ? tasks : initialTasks);
+                            return;
+                        }
+
+                        initialSnapshotHandled = true;
+                        tasks = snapshot.docs.map(taskFromFirestore);
+                        localStorage.setItem('gantt_tasks', JSON.stringify(tasks));
+                        render();
+                        updateLastSync();
+                    },
+                    err => {
+                        console.error('Firestore realtime listener failed:', err);
+                        showSyncStatus(`⚠ Realtime sync unavailable: ${err.message}`);
+                    }
+                );
+                showSyncStatus('✓ Connected to shared Firebase task data.');
+            } catch (err) {
+                console.error('Firebase initialization failed:', err);
+                showSyncStatus(`⚠ Firebase connection failed: ${err.message}`);
+            }
+        }
+
+        // Keep track and display local date time when a Sync action occurs
+        function updateLastSync() {
+            const now = new Date().toLocaleString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            lastSync = now;
+            localStorage.setItem('gantt_last_sync', lastSync);
+            displayLastSync();
+        }
+
+        function displayLastSync() {
+            const lastSyncEl = document.getElementById('last-sync-display');
+            if (lastSyncEl) {
+                lastSyncEl.innerHTML = lastSync 
+                    ? `⏱️ <strong>Last shared update:</strong> ${lastSync}` 
+                    : `⏱️ <strong>Last shared update:</strong> Never`;
+            }
+        }
+
+        // Export a portable copy of the current task-data file.
+        function exportData() {
+            try {
+                const dataStr = JSON.stringify(tasks, null, 4);
+                const dataBlob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
+                const dataUrl = URL.createObjectURL(dataBlob);
+
+                const linkElement = document.createElement('a');
+                linkElement.setAttribute('href', dataUrl);
+                linkElement.setAttribute('download', TASK_DATA_FILENAME);
+                linkElement.click();
+                URL.revokeObjectURL(dataUrl);
+
+                showSyncStatus(`📤 Exported ${TASK_DATA_FILENAME}.`);
+            } catch (err) {
+                console.error("Export failed: ", err);
+                alert("Failed to export backup. Please try again.");
+            }
+        }
+
+        // Import data from exported backup file
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedTasks = validateTaskData(JSON.parse(e.target.result));
+
+                    if (confirm(`Are you sure you want to import ${importedTasks.length} tasks? This will overwrite your current chart.`)) {
+                        tasks = importedTasks;
+                        activeProjectFilter = 'all'; // reset filter on import
+                        saveToStorageAndRender();
+                        replaceAllTasks(tasks);
+                        clearForm();
+                        showSyncStatus('📥 Import complete. Shared Firebase data is being updated.');
+                    }
+                } catch (err) {
+                    alert("Failed to import. Please make sure you are uploading a valid Gantt backup JSON file.\nError: " + err.message);
+                }
+                document.getElementById('import-file').value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function showSyncStatus(message) {
+            const statusEl = document.getElementById('sync-status');
+            statusEl.innerText = message;
+            statusEl.style.display = 'block';
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 6000);
+        }
+
+        // View Controls Transitions
+        function changeView(viewType) {
+            currentView = viewType;
+            document.querySelectorAll('.view-selector button').forEach(b => b.classList.remove('active'));
+            document.getElementById(`view-btn-${viewType}`).classList.add('active');
+            render();
+        }
+
+        function navigateView(direction) {
+            if (direction === 0) {
+                viewDate = new Date(); // Returns to the actual client date dynamically
+            } else {
+                if (currentView === 'weekly') {
+                    viewDate.setDate(viewDate.getDate() + direction * 7);
+                } else if (currentView === 'monthly') {
+                    viewDate.setMonth(viewDate.getMonth() + direction);
+                } else if (currentView === 'yearly') {
+                    viewDate.setFullYear(viewDate.getFullYear() + direction);
+                }
+            }
+            render();
+        }
+
+        function getMonthDays(year, month) {
+            return new Date(year, month + 1, 0).getDate();
+        }
+
+        // Priority filter controller for backlog tasks
+        function setUndatedFilter(value) {
+            undatedPriorityFilter = value;
+            renderGantt();
+        }
+
+        // Dynamic project dropdown & datalist suggestions update
+        function updateProjectFilterDropdown() {
+            const dropdown = document.getElementById('project-filter');
+            if (!dropdown) return;
+
+            // Extract all unique project tags
+            const projects = [];
+            tasks.forEach(t => {
+                if (t.project && t.project.trim()) {
+                    const proj = t.project.trim();
+                    if (!projects.includes(proj)) {
+                        projects.push(proj);
+                    }
+                }
+            });
+            projects.sort();
+
+            // Reset selected filter value if it no longer exists
+            if (activeProjectFilter !== 'all' && !projects.includes(activeProjectFilter)) {
+                activeProjectFilter = 'all';
+            }
+
+            // Clean up and populate filter options
+            dropdown.innerHTML = '<option value="all">All Projects</option>';
+            projects.forEach(proj => {
+                const opt = document.createElement('option');
+                opt.value = proj;
+                opt.innerText = proj;
+                if (proj === activeProjectFilter) {
+                    opt.selected = true;
+                }
+                dropdown.appendChild(opt);
+            });
+
+            // Clean up and populate autofill Suggestions Datalist
+            const datalist = document.getElementById('project-suggestions');
+            if (datalist) {
+                datalist.innerHTML = '';
+                projects.forEach(proj => {
+                    const opt = document.createElement('option');
+                    opt.value = proj;
+                    datalist.appendChild(opt);
+                });
+            }
+        }
+
+        function changeProjectFilter(value) {
+            activeProjectFilter = value;
+            render();
+        }
+
+        // Render application elements
+        function render() {
+            updateProjectFilterDropdown();
+            renderSidebar();
+            renderGantt();
+        }
+
+        function renderSidebar() {
+            const listContainer = document.getElementById('sidebar-task-list');
+            listContainer.innerHTML = '';
+
+            // Apply filters based on state (Show Completed & Project filter)
+            let tasksToRender = showCompleted ? tasks : tasks.filter(t => t.progress < 100);
+            if (activeProjectFilter !== 'all') {
+                tasksToRender = tasksToRender.filter(t => t.project === activeProjectFilter);
+            }
+
+            if (tasksToRender.length === 0) {
+                listContainer.innerHTML = '<div class="empty-state">No tasks available</div>';
+                return;
+            }
+
+            // Standardize Sorting: ensure completed tasks are moved to the end, active ones ordered by priority
+            const priorityOrder = { high: 1, medium: 2, low: 3 };
+            const sortedSidebarTasks = [...tasksToRender].sort((a, b) => {
+                const aDone = a.progress === 100 ? 1 : 0;
+                const bDone = b.progress === 100 ? 1 : 0;
+                if (aDone !== bDone) return aDone - bDone; // pushing 100% completed tasks to the bottom of the list
+                return priorityOrder[a.priority] - priorityOrder[b.priority]; // within group, sort by high -> medium -> low
+            });
+
+            sortedSidebarTasks.forEach(task => {
+                const isCompleted = task.progress === 100;
+                const cardClass = `task-card ${isCompleted ? 'completed' : task.priority}`;
+                const badgeClass = `priority-badge ${isCompleted ? 'completed' : task.priority}`;
+                const badgeLabel = isCompleted ? 'completed' : task.priority;
+
+                const card = document.createElement('div');
+                card.className = cardClass;
+                card.onclick = () => editTask(task.id);
+
+                const dateDisplay = task.noDates 
+                    ? `📅 <em>No dates scheduled (Backlog)</em>` 
+                    : `📅 ${formatDate(task.start)} to ${formatDate(task.end)}`;
+
+                card.innerHTML = `
+                    <div class="task-card-header">
+                        <div style="display: flex; flex-direction: column; gap: 4px; max-width: 80%;">
+                            <div class="task-card-title">${escapeHTML(task.name)}</div>
+                            ${task.project ? `<span class="project-tag" style="align-self: flex-start;">${escapeHTML(task.project)}</span>` : ''}
+                        </div>
+                        <span class="${badgeClass}">${badgeLabel}</span>
+                    </div>
+                    <div class="task-card-dates">
+                        ${dateDisplay}
+                    </div>
+                    <div class="task-card-progress">
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" style="width: ${task.progress}%; background: ${isCompleted ? 'var(--completed-color)' : 'var(--primary-color)'}"></div>
+                        </div>
+                        <span>${task.progress}%</span>
+                    </div>
+                    <div class="task-actions">
+                        <button onclick="deleteTask('${task.id}', event)" style="color: var(--priority-high);">Delete</button>
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
+        }
+
+        function renderGantt() {
+            const ganttView = document.getElementById('gantt-view');
+            ganttView.innerHTML = '';
+
+            // Apply filters based on state (Show Completed & Project filter)
+            let tasksToRender = showCompleted ? tasks : tasks.filter(t => t.progress < 100);
+            if (activeProjectFilter !== 'all') {
+                tasksToRender = tasksToRender.filter(t => t.project === activeProjectFilter);
+            }
+
+            // Compute precise range bounds depending on viewport select
+            let viewStart, viewEnd;
+            let year = viewDate.getFullYear();
+            let month = viewDate.getMonth();
+
+            if (currentView === 'weekly') {
+                // Find starting Sunday of that week
+                viewStart = new Date(viewDate);
+                const dayIndex = viewStart.getDay();
+                viewStart.setDate(viewStart.getDate() - dayIndex);
+                viewStart.setHours(0,0,0,0);
+
+                viewEnd = new Date(viewStart);
+                viewEnd.setDate(viewEnd.getDate() + 7);
+            } else if (currentView === 'monthly') {
+                viewStart = new Date(year, month, 1, 0, 0, 0);
+                viewEnd = new Date(year, month + 1, 1, 0, 0, 0); // 1st of next month
+            } else if (currentView === 'yearly') {
+                viewStart = new Date(year, 0, 1, 0, 0, 0);
+                viewEnd = new Date(year + 1, 0, 1, 0, 0, 0);
+            }
+
+            // Separate tasks with dates from those without dates AND ensure they overlap with the current view
+            const viewStartMs = viewStart.getTime();
+            const viewEndMs = viewEnd.getTime();
+
+            let datedTasks = tasksToRender.filter(t => {
+                if (t.noDates) return false;
+                const taskStart = new Date(t.start);
+                const taskEnd = new Date(t.end);
+                taskStart.setHours(0,0,0,0);
+                taskEnd.setHours(23,59,59,999);
+                return taskEnd.getTime() >= viewStartMs && taskStart.getTime() <= viewEndMs;
+            });
+
+            // Standardize Sorting for Dated Tasks: completed tasks pushed to the end, active ones by priority
+            const priorityOrder = { high: 1, medium: 2, low: 3 };
+            datedTasks.sort((a, b) => {
+                const aDone = a.progress === 100 ? 1 : 0;
+                const bDone = b.progress === 100 ? 1 : 0;
+                if (aDone !== bDone) return aDone - bDone;
+                return priorityOrder[a.priority] - priorityOrder[b.priority];
+            });
+
+            // 1) Undated/Backlog: Always sort tasks by priority (high --> medium --> low), then completed pushed to end
+            let undatedTasks = tasksToRender
+                .filter(t => t.noDates)
+                .sort((a, b) => {
+                    const aDone = a.progress === 100 ? 1 : 0;
+                    const bDone = b.progress === 100 ? 1 : 0;
+                    if (aDone !== bDone) return aDone - bDone;
+                    return priorityOrder[a.priority] - priorityOrder[b.priority];
+                });
+
+            // 2) Undated/Backlog: Filter by active priority if requested
+            if (undatedPriorityFilter !== 'all') {
+                undatedTasks = undatedTasks.filter(t => t.priority === undatedPriorityFilter);
+            }
+
+            // Render current dates range text in header
+            updateRangeHeader(viewStart, viewEnd);
+
+            if (tasksToRender.length === 0) {
+                ganttView.innerHTML = '<div class="empty-state"><h3>No tasks scheduled</h3><p>Add some tasks in the sidebar to visualize them here.</p></div>';
+                return;
+            }
+
+            // Generate Columns Headers
+            let headerHTML = `
+                <div class="gantt-header-row">
+                    <div class="gantt-header-task-column">Task Description</div>
+                    <div class="gantt-timeline-header">
+            `;
+
+            let totalDays = Math.ceil((viewEnd - viewStart) / (1000 * 60 * 60 * 24));
+
+            if (currentView === 'weekly') {
+                for (let i = 0; i < 7; i++) {
+                    const colDate = new Date(viewStart.getTime() + i * 24 * 60 * 60 * 1000);
+                    const dayLabel = colDate.getDate();
+                    const dayName = colDate.toLocaleDateString(undefined, { weekday: 'short' });
+                    const monthLabel = colDate.toLocaleString('default', { month: 'short' });
+                    const isWeekend = colDate.getDay() === 0 || colDate.getDay() === 6;
+
+                    headerHTML += `
+                        <div class="gantt-day-col ${isWeekend ? 'weekend' : ''}" style="flex: 1;">
+                            <div style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted);">${dayName}</div>
+                            <div class="text-bold" style="font-size: 0.85rem;">${monthLabel} ${dayLabel}</div>
+                        </div>
+                    `;
+                }
+            } else if (currentView === 'monthly') {
+                const totalMonthDays = getMonthDays(year, month);
+                const colDetails = [
+                    { label: `Days 1–7`, flex: 7 },
+                    { label: `Days 8–14`, flex: 7 },
+                    { label: `Days 15–21`, flex: 7 },
+                    { label: `Days 22–${totalMonthDays}`, flex: totalMonthDays - 21 }
+                ];
+                colDetails.forEach(col => {
+                    headerHTML += `
+                        <div class="gantt-day-col" style="flex: ${col.flex};">
+                            <div class="text-bold" style="font-size: 0.85rem;">${col.label}</div>
+                            <div style="font-size: 0.65rem; color: var(--text-muted);">${viewStart.toLocaleString('default', { month: 'short' })}</div>
+                        </div>
+                    `;
+                });
+            } else if (currentView === 'yearly') {
+                for (let m = 0; m < 12; m++) {
+                    const monthDays = getMonthDays(year, m);
+                    const testDate = new Date(year, m, 1);
+                    const monthLabel = testDate.toLocaleString('default', { month: 'short' });
+
+                    headerHTML += `
+                        <div class="gantt-day-col" style="flex: ${monthDays};">
+                            <div class="text-bold" style="font-size: 0.85rem;">${monthLabel}</div>
+                        </div>
+                    `;
+                }
+            }
+
+            headerHTML += `</div></div>`;
+            ganttView.innerHTML += headerHTML;
+
+            // Render Rows & absolute bars matching proportionally to visual boundaries for Dated Tasks
+            if (datedTasks.length === 0) {
+                ganttView.innerHTML += `
+                    <div class="empty-state" style="height: 120px;">
+                        <p style="font-size: 0.9rem; color: var(--text-muted);">No dated tasks scheduled for this view range.</p>
+                    </div>
+                `;
+            } else {
+                datedTasks.forEach(task => {
+                    const isCompleted = task.progress === 100;
+                    const taskStart = new Date(task.start);
+                    const taskEnd = new Date(task.end);
+                    taskStart.setHours(0,0,0,0);
+                    taskEnd.setHours(23,59,59,999);
+
+                    // Grid background cells matching visual headers exactly
+                    let cellsHTML = '';
+                    if (currentView === 'weekly') {
+                        for (let i = 0; i < 7; i++) {
+                            const colDate = new Date(viewStart.getTime() + i * 24 * 60 * 60 * 1000);
+                            const isWeekend = colDate.getDay() === 0 || colDate.getDay() === 6;
+                            cellsHTML += `<div class="gantt-cell ${isWeekend ? 'weekend' : ''}"></div>`;
+                        }
+                    } else if (currentView === 'monthly') {
+                        const totalMonthDays = getMonthDays(year, month);
+                        cellsHTML += `<div class="gantt-cell" style="flex: 7;"></div>`;
+                        cellsHTML += `<div class="gantt-cell" style="flex: 7;"></div>`;
+                        cellsHTML += `<div class="gantt-cell" style="flex: 7;"></div>`;
+                        cellsHTML += `<div class="gantt-cell" style="flex: ${totalMonthDays - 21};"></div>`;
+                    } else if (currentView === 'yearly') {
+                        for (let m = 0; m < 12; m++) {
+                            cellsHTML += `<div class="gantt-cell" style="flex: ${getMonthDays(year, m)};"></div>`;
+                        }
+                    }
+
+                    // Mathematical percentage mapping
+                    let barHTML = '';
+                    const pos = getBarPosition(task, viewStart, viewEnd);
+
+                    if (pos) {
+                        // Check if the visual representation is narrow in current scope to auto-hide labels
+                        const visibleStart = Math.max(taskStart.getTime(), viewStart.getTime());
+                        const visibleEnd = Math.min(taskEnd.getTime(), viewEnd.getTime());
+                        const visibleDays = (visibleEnd - visibleStart) / (1000 * 60 * 60 * 24);
+
+                        let hideLabel = false;
+                        if (currentView === 'weekly' && visibleDays < 1.2) hideLabel = true;
+                        if (currentView === 'monthly' && visibleDays < 3.5) hideLabel = true;
+                        if (currentView === 'yearly' && visibleDays < 35.0) hideLabel = true;
+
+                        const overflowLeftClass = pos.overflowLeft ? 'overflow-left' : '';
+                        const overflowRightClass = pos.overflowRight ? 'overflow-right' : '';
+                        const hideLabelClass = hideLabel ? 'hide-label' : '';
+                        const barClass = `gantt-bar ${isCompleted ? 'completed' : task.priority} ${overflowLeftClass} ${overflowRightClass} ${hideLabelClass}`;
+
+                        barHTML = `
+                            <div class="${barClass}" 
+                                 style="left: ${pos.leftPercent}%; width: ${pos.widthPercent}%;"
+                                 onmouseenter="showTooltip(event, '${task.id}')"
+                                 onmousemove="moveTooltip(event)"
+                                 onmouseleave="hideTooltip()"
+                                 onclick="editTask('${task.id}')">
+                                <div class="gantt-bar-progress" style="width: ${task.progress}%"></div>
+                                <div class="gantt-bar-label">
+                                    <span>${escapeHTML(task.name)}</span>
+                                    <span style="opacity: 0.8;">${task.progress}%</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    const rowHTML = `
+                        <div class="gantt-row">
+                            <div class="gantt-task-meta">
+                                <div class="gantt-meta-title" onclick="editTask('${task.id}')">
+                                    <span>${escapeHTML(task.name)}</span>
+                                    ${task.project ? `<span class="project-tag-gantt">${escapeHTML(task.project)}</span>` : ''}
+                                </div>
+                                <div class="gantt-meta-progress-wrapper">
+                                    <div class="gantt-meta-progress-bar">
+                                        <div class="gantt-meta-progress-fill ${isCompleted ? 'completed' : task.priority}" style="width: ${task.progress}%"></div>
+                                    </div>
+                                    <span class="gantt-meta-progress-text">${task.progress}% done</span>
+                                </div>
+                            </div>
+                            <div class="gantt-timeline-row">
+                                ${cellsHTML}
+                                ${barHTML}
+                            </div>
+                        </div>
+                    `;
+                    ganttView.innerHTML += rowHTML;
+                });
+            }
+
+            // Render Separate Retractable Undated Tasks Section at the bottom of the Gantt Chart
+            let undatedHTML = `
+                <div class="undated-section ${undatedCollapsed ? 'collapsed' : ''}">
+                    <div class="undated-section-header" onclick="toggleUndatedCollapse()" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; cursor: pointer; user-select: none; width: 100%;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            📂 Undated Tasks / Backlog List
+                            <span class="badge">${undatedTasks.length}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 15px; font-size: 0.85rem; font-weight: normal; color: var(--text-color);">
+                            <div style="display: flex; align-items: center; gap: 8px;" onclick="event.stopPropagation()">
+                                <label for="undated-filter" style="font-weight: 600; color: #475569;">Filter Priority:</label>
+                                <select id="undated-filter" onchange="setUndatedFilter(this.value)" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); background: white; font-size: 0.8rem; cursor: pointer; outline: none;">
+                                    <option value="all" ${undatedPriorityFilter === 'all' ? 'selected' : ''}>All Priorities</option>
+                                    <option value="high" ${undatedPriorityFilter === 'high' ? 'selected' : ''}>High Only</option>
+                                    <option value="medium" ${undatedPriorityFilter === 'medium' ? 'selected' : ''}>Medium Only</option>
+                                    <option value="low" ${undatedPriorityFilter === 'low' ? 'selected' : ''}>Low Only</option>
+                                </select>
+                            </div>
+                            <span style="font-size: 0.95rem; color: var(--text-muted); transition: transform 0.2s;" class="undated-arrow-indicator">${undatedCollapsed ? '▼' : '▲'}</span>
+                        </div>
+                    </div>
+                    <div class="undated-content-wrapper" style="margin-top: 15px;">
+            `;
+
+            if (undatedTasks.length === 0) {
+                undatedHTML += `
+                    <div style="color: var(--text-muted); font-size: 0.85rem; padding: 20px; background: white; border: 1px dashed var(--border-color); border-radius: 8px; text-align: center;">
+                        No undated tasks match this filter criteria. Tick the "No defined dates" checkbox when adding/editing a task to place it here.
+                    </div>
+                `;
+            } else {
+                undatedHTML += `<div class="undated-grid">`;
+                undatedTasks.forEach(task => {
+                    const isCompleted = task.progress === 100;
+                    const cardClass = `undated-card ${isCompleted ? 'completed' : task.priority}`;
+                    const badgeClass = `priority-badge ${isCompleted ? 'completed' : task.priority}`;
+                    const badgeLabel = isCompleted ? 'completed' : task.priority;
+
+                    undatedHTML += `
+                        <div class="${cardClass}" onclick="editTask('${task.id}')">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    <div style="font-weight: 600; font-size: 0.9rem; color: #1e293b; line-height: 1.3;">${escapeHTML(task.name)}</div>
+                                    ${task.project ? `<span class="project-tag-backlog" style="align-self: flex-start;">${escapeHTML(task.project)}</span>` : ''}
+                                </div>
+                                <span class="${badgeClass}">${badgeLabel}</span>
+                            </div>
+                            <div class="task-card-progress" style="margin-top: 5px;">
+                                <div class="progress-bar-bg">
+                                    <div class="progress-bar-fill" style="width: ${task.progress}%; background: ${isCompleted ? 'var(--completed-color)' : 'var(--primary-color)'};"></div>
+                                </div>
+                                <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">${task.progress}% done</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; padding-top: 5px; border-top: 1px solid #f1f5f9;">
+                                <span style="font-size: 0.7rem; color: var(--text-muted); font-style: italic;">No dates scheduled</span>
+                                <button onclick="deleteTask('${task.id}', event)" style="padding: 2px 6px; font-size: 0.7rem; border-color: transparent; color: var(--priority-high); background: transparent; cursor: pointer;">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                undatedHTML += `</div>`;
+            }
+            undatedHTML += `</div></div>`;
+            ganttView.innerHTML += undatedHTML;
+        }
+
+        // Calculate visual bar layout sizes
+        function getBarPosition(task, viewStart, viewEnd) {
+            const taskStart = new Date(task.start);
+            const taskEnd = new Date(task.end);
+            taskStart.setHours(0,0,0,0);
+            taskEnd.setHours(23,59,59,999);
+
+            const viewStartMs = viewStart.getTime();
+            const viewEndMs = viewEnd.getTime();
+            const viewDuration = viewEndMs - viewStartMs;
+
+            if (taskEnd.getTime() < viewStartMs || taskStart.getTime() > viewEndMs) {
+                return null; // Completely out of range
+            }
+
+            const drawStart = Math.max(taskStart.getTime(), viewStartMs);
+            const drawEnd = Math.min(taskEnd.getTime(), viewEndMs);
+
+            const leftPercent = ((drawStart - viewStartMs) / viewDuration) * 100;
+            const widthPercent = ((drawEnd - drawStart) / viewDuration) * 100;
+
+            const overflowLeft = taskStart.getTime() < viewStartMs;
+            const overflowRight = taskEnd.getTime() > viewEndMs;
+
+            return {
+                leftPercent,
+                widthPercent: Math.max(1.5, widthPercent), // Ensures a sliver is always rendered if present
+                overflowLeft,
+                overflowRight
+            };
+        }
+
+        // Active range display helper
+        function updateRangeHeader(viewStart, viewEnd) {
+            const rangeText = document.getElementById('current-range-text');
+            if (currentView === 'weekly') {
+                const startStr = viewStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                const endOfWeek = new Date(viewEnd.getTime() - 1);
+                const endStr = endOfWeek.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                rangeText.innerText = `Week of ${startStr} – ${endStr}`;
+            } else if (currentView === 'monthly') {
+                rangeText.innerText = viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+            } else if (currentView === 'yearly') {
+                rangeText.innerText = `Year ${viewDate.getFullYear()}`;
+            }
+        }
+
+        // Interactive hover tooltips handlers
+        function showTooltip(event, taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const tooltip = document.getElementById('gantt-tooltip');
+            const isCompleted = task.progress === 100;
+            const badgeClass = `priority-badge ${isCompleted ? 'completed' : task.priority}`;
+            const badgeLabel = isCompleted ? 'Completed' : (task.priority.charAt(0).toUpperCase() + task.priority.slice(1));
+            const startStr = formatDate(task.start);
+            const endStr = formatDate(task.end);
+
+            tooltip.innerHTML = `
+                <div style="font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; white-space: normal; line-height: 1.3; display: flex; flex-direction: column; gap: 4px;">
+                    <span>${escapeHTML(task.name)}</span>
+                    ${task.project ? `<span class="project-tag-tooltip" style="align-self: flex-start;">${escapeHTML(task.project)}</span>` : ''}
+                </div>
+                <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 10px;">
+                    <span class="${badgeClass}">${badgeLabel}</span>
+                    <span style="font-size: 0.75rem; color: #cbd5e1; font-weight: 500;">${startStr} – ${endStr}</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight:600;">
+                        <span style="color: #94a3b8;">Completion:</span>
+                        <span>${task.progress}% Done</span>
+                    </div>
+                    <div style="height: 6px; background: #475569; border-radius: 3px; overflow: hidden; width: 100%;">
+                        <div style="height: 100%; width: ${task.progress}%; background: var(--completed-color);"></div>
+                    </div>
+                </div>
+            `;
+
+            tooltip.style.display = 'block';
+            tooltip.style.opacity = '1';
+            moveTooltip(event);
+        }
+
+        // Mousemove tooltip boundary check
+        function moveTooltip(event) {
+            const tooltip = document.getElementById('gantt-tooltip');
+            const tooltipWidth = tooltip.offsetWidth;
+            const tooltipHeight = tooltip.offsetHeight;
+
+            let x = event.pageX + 15;
+            let y = event.pageY + 15;
+
+            if (x + tooltipWidth > window.innerWidth) {
+                x = event.pageX - tooltipWidth - 15;
+            }
+            if (y + tooltipHeight > window.innerHeight) {
+                y = event.pageY - tooltipHeight - 15;
+            }
+
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+        }
+
+        function hideTooltip() {
+            const tooltip = document.getElementById('gantt-tooltip');
+            tooltip.style.display = 'none';
+            tooltip.style.opacity = '0';
+        }
+
+        // Export active Gantt viewport as PNG image
+        function exportToPNG() {
+            const ganttTarget = document.getElementById('gantt-view');
+            const btn = document.querySelector('button[onclick="exportToPNG()"]');
+            const originalText = btn.innerHTML;
+
+            btn.innerHTML = '⏳ Generating...';
+            btn.disabled = true;
+
+            // Generate crisp high-dpi screenshot mapping css styles accurately
+            html2canvas(ganttTarget, {
+                backgroundColor: '#ffffff',
+                scale: 2, // 2x Retina upscale resolution
+                useCORS: true,
+                logging: false,
+                height: ganttTarget.scrollHeight, // Capture full contents if scrolled
+                windowHeight: ganttTarget.scrollHeight
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `Gantt_Chart_${currentView}_View.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }).catch(err => {
+                console.error("Export failed: ", err);
+                alert("Failed to export Gantt Chart image. Please try again.");
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+        }
+
+        // Helper formatting date strings
+        function formatDate(dateStr) {
+            if (!dateStr) return "N/A";
+            const d = new Date(dateStr);
+            return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        // Helper escaping html text elements
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        // Initial state adjustments
+        document.getElementById('show-completed-toggle').checked = showCompleted;
+        displayLastSync();
+
+        // Restore collapsible states from localStorage on startup
+        ['section-data', 'section-create', 'section-list'].forEach(id => {
+            const collapsed = localStorage.getItem(`gantt_collapsed_${id}`) === 'true';
+            const section = document.getElementById(id);
+            if (section && collapsed) {
+                section.classList.add('collapsed');
+            }
+        });
+
+        // Inline HTML event handlers need these functions on window when using ES modules.
+        Object.assign(window, {
+            changeProjectFilter,
+            changeView,
+            clearForm,
+            deleteTask,
+            editTask,
+            exportData,
+            exportToPNG,
+            hideTooltip,
+            importData,
+            navigateView,
+            resetData,
+            saveTask,
+            setUndatedFilter,
+            showTooltip,
+            sortTasks,
+            toggleCompletedTasks,
+            toggleDateInputs,
+            toggleSection,
+            toggleUndatedCollapse
+        });
+
+        initializeSharedTasks();
+    </script>
+</body>
+</html>

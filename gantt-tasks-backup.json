@@ -1,0 +1,62 @@
+[
+    {
+        "id": "1",
+        "name": "Scenario-based Industry Fin Model",
+        "priority": "high",
+        "start": "2026-06-09",
+        "end": "2026-06-11",
+        "progress": 50,
+        "noDates": false,
+        "project": "#AM-Best"
+    },
+    {
+        "id": "2",
+        "name": "test",
+        "priority": "medium",
+        "start": "2026-06-13",
+        "end": "2026-06-24",
+        "progress": 0,
+        "noDates": false,
+        "project": ""
+    },
+    {
+        "id": "3",
+        "name": "UI Design Phase",
+        "priority": "medium",
+        "start": "2026-06-01",
+        "end": "2026-06-08",
+        "progress": 85,
+        "noDates": false,
+        "project": "#AI-Big-Bang"
+    },
+    {
+        "id": "4",
+        "name": "Backend Architecture",
+        "priority": "high",
+        "start": "2026-06-05",
+        "end": "2026-06-20",
+        "progress": 100,
+        "noDates": false,
+        "project": "#AI-Big-Bang"
+    },
+    {
+        "id": "5",
+        "name": "App Deployment & Launch",
+        "priority": "low",
+        "start": "2026-06-25",
+        "end": "2026-07-10",
+        "progress": 0,
+        "noDates": false,
+        "project": ""
+    },
+    {
+        "id": "6",
+        "name": "Draft project guidelines & standard operating procedures",
+        "priority": "low",
+        "start": "",
+        "end": "",
+        "progress": 10,
+        "noDates": true,
+        "project": "#Core-Platform"
+    }
+]
